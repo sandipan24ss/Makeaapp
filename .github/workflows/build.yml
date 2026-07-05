@@ -21,21 +21,41 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.2'
+      - name: Install Gradle 8.2
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q gradle-8.2-bin.zip
+          mv gradle-8.2 /opt/gradle
+          echo "/opt/gradle/bin" >> $GITHUB_PATH
+          gradle --version
 
       - name: Build Debug APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --stacktrace
+        id: build
 
       - name: Debug — List APK files
-        run: find app/build -name "*.apk" -type f 2>/dev/null || echo "No APKs found"
+        if: always()
+        run: |
+          echo "=== Searching for APKs ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APKs found"
+          echo "=== Build directory contents ==="
+          ls -la app/build/outputs/apk/debug/ 2>/dev/null || echo "No debug output dir"
 
       - name: Upload APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: FakeFFPanel-APK
           path: app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            app/build/reports/
+            app/build/outputs/
+          if-no-files-found: ignore
